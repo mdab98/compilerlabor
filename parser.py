@@ -6,7 +6,7 @@ class Parser:
         self.input = input
         self.current_pos = 0
         self.current_token = self.input[self.current_pos]
-        self.cache: Dict[Tuple[int, Callable], LeafNode] = {}
+        self.cache: Dict[Tuple[int, Callable], (int, LeafNode)] = {}
 
     ###########################
     #### parser control
@@ -34,10 +34,12 @@ class Parser:
     def invoke(self, where, what):
         key = (where, what)
         if key in self.cache:
-            return self.cache[key]
+            res = self.cache[key]
+            self.reset_pos(  res[0])
+            return res[1]
         else:
             res = what()
-            self.cache[key] = res
+            self.cache[key] = (self.current_pos, res)
             return res
         
     ########################
@@ -58,7 +60,7 @@ class Parser:
             return (True, LeafNode(Token('ADD'), res[1], res2[1]))
         self.reset_pos(pos)
 
-        res = self.term()
+        res = self.invoke(pos, self.term)
         if res[0]:
             return (True, res[1])
         self.reset_pos(pos)
@@ -66,30 +68,30 @@ class Parser:
 
     def term(self):
         pos = self.current_pos
-        res = self.factor()
+        res = self.invoke(pos,self.factor)
         res2 = (False, False)
         exp = False
         if res[0]:
             exp = self.expect('MULT')
             if exp:
-                res2 = self.term()
+                res2 = self.invoke(self.current_pos, self.term)
         if res[0] and exp and res2[0]:
             return (True, LeafNode(Token('MULT'), res[1], res2[1]))
         self.reset_pos(pos)#important line
 
 
-        res = self.factor()
+        res = self.invoke(pos, self.factor)
         res2 = (False, False)
         exp = False
         if res[0]:
             exp = self.expect('POW')
             if exp:
-                res2 = self.term()
+                res2 = self.invoke(self.current_pos, self.term)
         if res[0] and exp and res2[0]:
             return (True, LeafNode(Token('POW'), res[1], res2[1]))
         self.reset_pos(pos)
 
-        res = self.factor()
+        res = self.invoke(pos, self.factor)
         if res[0]:
             return (True, res[1])
         self.reset_pos(pos)
@@ -99,12 +101,12 @@ class Parser:
         pos = self.current_pos
         tok = self.current_token
 
-        res = self.usubt()
+        res = self.invoke(pos, self.usubt)
         if res[0]:
             return (True, res[1])
         self.reset_pos(pos)
         res = self.expect('USUB')
-        res2 = self.usubt()
+        res2 = self.invoke(pos, self.usubt)
         if res and res2[0]:
             return (True, LeafNode(tok, res2[1]))
         self.reset_pos(pos)
@@ -119,6 +121,13 @@ class Parser:
         if self.expect('FLOAT'):
             return (True, LeafNode(tok))
         self.reset_pos(pos)
+
+
+        if self.expect('LPAR'):
+            res = self.invoke(pos, self.expr)
+            if res[0] and self.expect('RPAR'):
+                return (True, res[1])
+
         return (False, False)
 
         #start -> expr EOF
@@ -162,7 +171,7 @@ class LeafNode:
 
 
 if __name__ == '__main__':
-    token_list = lexer.Lexer('1+1**2.03+3.01+3.001*50').lex()
+    token_list = lexer.Lexer('1+1**(2.03+3.01)+3.001*50').lex()
     print(token_list)
     out = Parser(token_list).parse()
 
