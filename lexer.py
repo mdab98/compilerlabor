@@ -23,6 +23,13 @@ class Lexer:
             self.current_sym = self.text[self.pos]
         else:
             self.current_sym = None
+    def peek(self):
+        '''Returns next char without moving, if possible.'''
+
+        if self.pos+1 < len(self.text):
+            return self.text[self.pos+1]
+        else:
+            return None
 
     
     ####################################
@@ -64,6 +71,11 @@ class Lexer:
         if floater:
             return Token(FLOAT,value)
         return Token(NUM,value)
+    def star(self):
+        if self.peek() == '*':
+            self.move()
+            return Token(POW)
+        return Token(MULT)
 
         
     ####################################
@@ -86,7 +98,8 @@ class Lexer:
                     token_list.append(Token(USUB))
                     self.move()
                 case '*':
-                    token_list.append(Token(MULT))
+                    #token_list.append(Token(MULT))
+                    token_list.append(self.star())
                     self.move()
                 case '(':
                     token_list.append(Token(LPAR))
@@ -102,7 +115,7 @@ class Lexer:
         return token_list
 
 if __name__ == '__main__':
-    print(Lexer('\n2\t*- 0.0303').lex())
+    print(Lexer('0.5').lex())
 
 
 """
