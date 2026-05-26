@@ -48,11 +48,11 @@ registers_for_coloring = [
 def get_loc_from_arg(a: arg) -> set[location]:
     match a:
         case Reg(_):
-            return set([a])
+            return set()
         case Variable(_):
             return set([a])
         case ByteReg(_):
-            return set([a])
+            return set()
         case _:
             return set([])
 
@@ -165,7 +165,6 @@ class CompilerReg(Compiler):
 
         ######
         for (inst, vs) in reversed(live_after.items()):
-            #print(f"{inst}\n life_after {vs}")
             match inst:
                 case Instr("movq", args):
                     s = next(iter(get_loc_from_arg(args[0])), None)
@@ -173,37 +172,44 @@ class CompilerReg(Compiler):
                     if d:
                         for v in vs:
                             if v != d and v != s:
-                                graph.add_edge(d, v)
+                                #need to check if the edge already exists so we don't have duplicates, graph class doesn't like it
+                                if graph.has_edge(d,v) == False:
+                                    graph.add_edge(d, v)
                 case Instr("addq", args):
                     d = next(iter(get_loc_from_arg(args[1])), None)
                     if d:
                         for v in vs:
                             if v != d:
-                                graph.add_edge(d, v)
+                                if graph.has_edge(d,v) == False:
+                                    graph.add_edge(d, v)
                 case Instr("subq", args):
                     d = next(iter(get_loc_from_arg(args[1])), None)
                     if d:
                         for v in vs:
                             if v != d:
-                                graph.add_edge(d, v)
+                                if graph.has_edge(d,v) == False:
+                                    graph.add_edge(d, v)
                 case Instr("negq", args):
                     d = next(iter(get_loc_from_arg(args[0])), None)
                     if d:
                         for v in vs:
                             if v != d:
-                                graph.add_edge(d, v)
+                                if graph.has_edge(d,v) == False:
+                                    graph.add_edge(d, v)
                 case Callq("print_int", 1):
+                    #only for correctness sake
                     for d in caller_saved_registers:
                         for v in vs:
                             if v != d:
-                                graph.add_edge(d, v)
+                                if graph.has_edge(d,v) == False:
+                                    graph.add_edge(d, v)
                 case Callq("read_int", 0):
                     for d in caller_saved_registers:
                         for v in vs:
                             if v != d:
-                                graph.add_edge(d, v)
+                                if graph.has_edge(d,v) == False:
+                                    graph.add_edge(d, v)
 
-        #graph.show().view()
         return graph
 
     ############################################################################
@@ -218,85 +224,180 @@ class CompilerReg(Compiler):
         k = len(colors)
         stack = list()
         dc = copy.deepcopy(graph)
+        dc.show().view()
 
         while graph.vertices():
+            removed = False
             for node in graph.vertices():
                 print(node)
                 if (len(graph.adjacent(node)) < k):
                     stack.append((node, False))
                     graph.remove_vertex(node)
+                    removed = True
+                    break
             #here comes spilling
-            for node in graph.vertices():
-                stack.append((node, True))
-                graph.remove_vertex(node)
+            if removed == False:
+                for node in graph.vertices():
+                    stack.append((node, True))
+                    graph.remove_vertex(node)
+                    break
 
 
+        #first we take care of not spilled vars
         while stack:
-            node = stack.pop()
+            node, spilled = stack.pop()
 
+            if spilled:
+                mapping[node] = None
+            else:
+                used_colors = set()
+                for present in mapping.keys():
+                    if dc.has_edge(node, present):
+                        used_colors.add(mapping[present])
 
+                mapping[node] = None
+                for color in colors:
+                    if color not in used_colors:
+                        mapping[node] = color
+                        break
+        for node in mapping:
+            if mapping[node] == None:
+                used_colors = set()
+                for present in mapping.keys():
+                    if dc.has_edge(node, present):
+                        used_colors.add(mapping[present])
+                colored = False
+                for color in colors:
+                    if color not in used_colors:
+                        mapping[node] = color
+                        colored = True
+                        break
+                if colored == False:
+                    self.stack_frame += 8
+                    home = Deref("rbp", -self.stack_frame)
+                    mapping[node] = home
+                    #so we can reuse the new "color"
+                    colors.append(home)
 
-        raise Exception('not implemented')
-        for node in graph.vertices():
-            print(node)
-            if (len(graph.adjacent(node)) < k):
-                stack.append((node, False))
-        while stack:
-            print(stack.pop())
+        return mapping
 
-        raise Exception('not implemented')
-
-    ############################################################################
-    # Assign Homes
-    ############################################################################
+    ################
+    # Assign Homes #
+    ################
 
     def assign_homes_arg(self, a: arg, home: dict[Variable, arg]) -> arg:
-        # YOUR CODE HERE
-        raise Exception('not implemented')
+        match a:
+            case Variable(name):
+                if a in home:
+                    return home[a]
+        return a
 
     def assign_homes_instr(self, i: instr, home: dict[Variable, arg]) -> instr:
-        # YOUR CODE HERE
-        raise Exception('not implemented')
+        match i:
+            case Instr(s, [a1, a2]):
+                return Instr(s, [
+                    self.assign_homes_arg(a1, home),
+                    self.assign_homes_arg(a2, home)
+                ])
+            case Instr(s, [a]):
+                return Instr(s, [
+                    self.assign_homes_arg(a, home),
+                ])
+        return i
 
     def assign_homes_instrs(
         self, ss: list[instr], home: dict[Variable, arg]
     ) -> list[instr]:
-        # YOUR CODE HERE
-        raise Exception('not implemented')
+        new_instructions: list[instr] = []
+        for ins in ss:
+            new_instructions.append(self.assign_homes_instr(ins, home))
+        return new_instructions
 
     def assign_homes(self, p: X86Program) -> X86Program:
-        # YOUR CODE HERE
-        live_after = self.uncover_live(p)
-        graph = self.build_interference(p, live_after)
+        lafter = self.uncover_live(p)
+        graph = self.build_interference(p, lafter)
 
-        mapping = self.color_graph(graph, registers_for_coloring)
 
-        print("this is as far as she goes I'm afraid")
-        raise Exception('not implemented')
 
-    ############################################################################
-    # Patch Instructions
-    ############################################################################
+        name_table: dict[Variable, arg] = self.color_graph(graph, registers_for_coloring)
+        new_program: dict[str, list[instr]] = {}
+        for f in p.body:
+            new_program[f] = self.assign_homes_instrs(
+                p.body[f], name_table)
+
+        if self.stack_frame % 16 != 0:
+            self.stack_frame += 16 - self.stack_frame % 16
+
+        return X86Program(new_program)
+
+    ######################
+    # Patch Instructions #
+    ######################
 
     def patch_instr(self, i: instr) -> list[instr]:
-        # YOUR CODE HERE
-        raise Exception('not implemented')
+        match i:
+            case Instr(s, [a1, a2]):
+                match a1:
+                    case Deref(_):
+                        return [
+                            Instr("movq", [a1, Reg("rax")]),
+                            Instr(s, [Reg("rax"), a2]),
+                        ]
+            case Instr(s, [a]):
+                match a:
+                    case Deref(_):
+                        return [
+                            Instr("movq", [a, Reg("rax")]),
+                            Instr(s, [Reg("rax")]),
+                            Instr("movq", [Reg("rax"), a]),
+                        ]
+        return [i]
 
     def patch_instrs(self, instrs: list[instr]) -> list[instr]:
-        # YOUR CODE HERE
-        raise Exception('not implemented')
+        new_instructions: list[instr] = []
+        for ins in instrs:
+            new_instructions += self.patch_instr(ins)
+        return new_instructions
 
     def patch_instructions(self, p: X86Program) -> X86Program:
-        # YOUR CODE HERE
-        raise Exception('not implemented')
+        new_program: dict[str, list[instr]] = {}
+        for f in p.body:
+            new_program[f] = self.patch_instrs(p.body[f])
+        return X86Program(new_program)
 
     ############################################################################
     # Prelude & Conclusion
     ############################################################################
 
     def prelude_and_conclusion(self, p: X86Program) -> X86Program:
-        # YOUR CODE HERE
-        raise Exception('not implemented')
+        new_program: dict[str, list[instr]] = []
+
+        for f in p.body:
+            prelude = [
+                Instr("pushq", [Reg("rbp")]),
+                Instr("pushq", [Reg("rbx")]),
+                Instr("pushq", [Reg("r12")]),
+                Instr("pushq", [Reg("r13")]),
+                Instr("pushq", [Reg("r14")]),
+                Instr("pushq", [Reg("r15")]),
+                Instr("movq", [Reg("rsp"), Reg("rbp")]),
+                Instr("subq", [Immediate(self.stack_frame), Reg("rsp")]),
+            ]
+
+            conclusion = [
+                Instr("addq", [Immediate(self.stack_frame), Reg("rsp")]),
+                Instr("popq", [Reg("r15")]),
+                Instr("popq", [Reg("r14")]),
+                Instr("popq", [Reg("r13")]),
+                Instr("popq", [Reg("r12")]),
+                Instr("popq", [Reg("rbx")]),
+                Instr("popq", [Reg("rbp")]),
+                Instr("retq", [])
+            ]
+
+            new_program += prelude + p.body[f] + conclusion
+
+        return X86Program(new_program)
 
     ##################################################
     # Compiler
@@ -307,10 +408,10 @@ class CompilerReg(Compiler):
             'remove complex operands': self.remove_complex_operands,
             'select instructions': self.select_instructions,
             'assign homes': self.assign_homes,
-        }
-        """
             'patch instructions': self.patch_instructions,
             'prelude & conclusion': self.prelude_and_conclusion,
+        }
+        """
         }
         """
 
@@ -359,6 +460,8 @@ def produce44() -> X86Program:
     list_instr.append(Instr("addq", (Variable("tmp_0"), Variable("tmp_1"))))
     list_instr.append(Instr("movq", (Variable("tmp_1"), Reg("rdi"))))
     list_instr.append(Callq("print_int", 1))
+    list_instr.append(Instr("movq", (Variable("y"), Variable("tmp_0"))))
+    list_instr.append(Instr("negq", [Variable("tmp_0")]))
     dc = dict()
     dc["main"] = list_instr
     book_example = X86Program(dc)
@@ -372,19 +475,18 @@ if __name__ == '__main__':
     if len(sys.argv) != 2:
         print('Usage: python compiler_register_allocator.py <source filename>')
     else:
-        book_example = produce44()
+        #book_example = produce44()
 
-        print(book_example)
+        #print(book_example)
 
         compiler = CompilerReg()
-        lafter = compiler.uncover_live(book_example)
-        compiler.build_interference(book_example, lafter)
-        compiler.assign_homes(book_example)
+        #lafter = compiler.uncover_live(book_example)
+        #compiler.build_interference(book_example, lafter)
+        #compiler.assign_homes(book_example)
         
 
 
 
-        exit()
         file_name = sys.argv[1]
         with open(file_name) as f:
             print(f'Compiling program {file_name}...')

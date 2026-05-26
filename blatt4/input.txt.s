@@ -1,1 +1,31 @@
-{Instr(instr='movq', args=(Variable(id='b'), Variable(id='c'))): set(), Callq(func='print_int', num_args=1): {Variable(id='b')}, Instr(instr='movq', args=(Variable(id='c'), Reg(id='rdi'))): {Variable(id='b'), Reg(id='rdi')}, Instr(instr='movq', args=(Variable(id='tmp_0'), Variable(id='c'))): {Variable(id='b'), Variable(id='c')}, Instr(instr='movq', args=(Reg(id='rax'), Variable(id='tmp_0'))): {Variable(id='b'), Variable(id='tmp_0')}, Callq(func='read_int', num_args=0): {Variable(id='b'), Reg(id='rax')}, Instr(instr='addq', args=(Variable(id='a'), Variable(id='b'))): {Variable(id='b')}, Instr(instr='movq', args=(Variable(id='a'), Variable(id='b'))): {Variable(id='b'), Variable(id='a')}, Instr(instr='movq', args=(Variable(id='b'), Variable(id='a'))): {Variable(id='a')}, Instr(instr='addq', args=(Immediate(value=5), Variable(id='b'))): {Variable(id='b')}, Instr(instr='movq', args=(Immediate(value=5), Variable(id='b'))): {Variable(id='b')}, Instr(instr='movq', args=(Immediate(value=5), Variable(id='a'))): set()}
+	.globl main
+main:
+    pushq %rbp
+    pushq %rbx
+    pushq %r12
+    pushq %r13
+    pushq %r14
+    pushq %r15
+    movq %rsp, %rbp
+    subq $0, %rsp
+    movq $5, %rcx
+    movq $5, %rdx
+    addq $5, %rdx
+    movq %rdx, %rcx
+    movq %rcx, %rdx
+    addq %rcx, %rdx
+    callq read_int
+    movq %rax, %rcx
+    movq %rcx, %rcx
+    movq %rcx, %rdi
+    callq print_int
+    movq %rdx, %rcx
+    addq $0, %rsp
+    popq %r15
+    popq %r14
+    popq %r13
+    popq %r12
+    popq %rbx
+    popq %rbp
+    retq 
+
