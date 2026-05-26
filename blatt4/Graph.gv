@@ -1,0 +1,16 @@
+graph {
+	tmp_1
+	tmp_0
+	z
+	y
+	w
+	x
+	v
+	tmp_0 -- z [len=1.5]
+	z -- w [len=1.5]
+	y -- w [len=1.5]
+	z -- y [len=1.5]
+	x -- w [len=1.5]
+	w -- v [len=1.5]
+	tmp_1 -- tmp_0 [len=1.5]
+}
