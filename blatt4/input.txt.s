@@ -7,7 +7,7 @@ main:
     pushq %r14
     pushq %r15
     movq %rsp, %rbp
-    subq $0, %rsp
+    subq $8, %rsp
     movq $5, %rcx
     movq $5, %rdx
     addq $5, %rdx
@@ -20,7 +20,7 @@ main:
     movq %rcx, %rdi
     callq print_int
     movq %rdx, %rcx
-    addq $0, %rsp
+    addq $8, %rsp
     popq %r15
     popq %r14
     popq %r13

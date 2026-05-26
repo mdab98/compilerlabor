@@ -3,6 +3,7 @@ from ast import *
 from x86_ast import *
 from utils import *
 import copy
+import random
 from compiler_var import Compiler
 
 Binding = tuple[Name, expr]
@@ -198,23 +199,194 @@ class CompilerReg(Compiler):
                                     graph.add_edge(d, v)
                 case Callq("print_int", 1):
                     #only for correctness sake
+                    """
                     for d in caller_saved_registers:
                         for v in vs:
                             if v != d:
                                 if graph.has_edge(d,v) == False:
                                     graph.add_edge(d, v)
+                                    """
+                    pass
                 case Callq("read_int", 0):
+                    """
                     for d in caller_saved_registers:
                         for v in vs:
                             if v != d:
                                 if graph.has_edge(d,v) == False:
                                     graph.add_edge(d, v)
+                                    """
+                    pass
 
         return graph
 
     ############################################################################
     # Allocate Registers
     ############################################################################
+    def color_graph_random(
+        self, graph: UndirectedAdjList, colors: list[location]
+    ) -> dict[location, arg]:
+        # YOUR CODE HERE
+        mapping = dict()
+        k = len(colors)
+        stack = list()
+        dc = copy.deepcopy(graph)
+
+        while graph.vertices():
+            selected = random.choice(list(graph.vertices()))
+
+            spilled = len(graph.adjacent(selected)) > k
+            stack.append((selected, spilled))
+            graph.remove_vertex(selected)
+
+
+        while stack:
+            node, spilled = stack.pop()
+
+            if spilled:
+                mapping[node] = None
+            else:
+                used_colors = set()
+                for present in mapping.keys():
+                    if dc.has_edge(node, present):
+                        used_colors.add(mapping[present])
+
+                mapping[node] = None
+                for color in colors:
+                    if color not in used_colors:
+                        mapping[node] = color
+                        break
+        for node in mapping:
+            if mapping[node] == None:
+                used_colors = set()
+                for present in mapping.keys():
+                    if dc.has_edge(node, present):
+                        used_colors.add(mapping[present])
+                colored = False
+                for color in colors:
+                    if color not in used_colors:
+                        mapping[node] = color
+                        colored = True
+                        break
+                if colored == False:
+                    self.stack_frame += 8
+                    home = Deref("rbp", -self.stack_frame)
+                    mapping[node] = home
+                    #so we can reuse the new "color"
+                    colors.append(home)
+
+        return mapping
+    def color_graph_lowest_first(
+        self, graph: UndirectedAdjList, colors: list[location]
+    ) -> dict[location, arg]:
+        # YOUR CODE HERE
+        mapping = dict()
+        k = len(colors)
+        stack = list()
+        dc = copy.deepcopy(graph)
+
+        while graph.vertices():
+            smallest = next(iter(graph.vertices()))
+            for node in graph.vertices():
+                if (len(graph.adjacent(node)) < len(graph.adjecent(smallest))):
+                    smallest = node
+
+            spilled = len(graph.adjacent(smallest)) > k
+            stack.append((smallest, spilled))
+            graph.remove_vertex(smallest)
+
+
+        while stack:
+            node, spilled = stack.pop()
+
+            if spilled:
+                mapping[node] = None
+            else:
+                used_colors = set()
+                for present in mapping.keys():
+                    if dc.has_edge(node, present):
+                        used_colors.add(mapping[present])
+
+                mapping[node] = None
+                for color in colors:
+                    if color not in used_colors:
+                        mapping[node] = color
+                        break
+        for node in mapping:
+            if mapping[node] == None:
+                used_colors = set()
+                for present in mapping.keys():
+                    if dc.has_edge(node, present):
+                        used_colors.add(mapping[present])
+                colored = False
+                for color in colors:
+                    if color not in used_colors:
+                        mapping[node] = color
+                        colored = True
+                        break
+                if colored == False:
+                    self.stack_frame += 8
+                    home = Deref("rbp", -self.stack_frame)
+                    mapping[node] = home
+                    #so we can reuse the new "color"
+                    colors.append(home)
+
+        return mapping
+    def color_graph_highest_first(
+        self, graph: UndirectedAdjList, colors: list[location]
+    ) -> dict[location, arg]:
+        # YOUR CODE HERE
+        mapping = dict()
+        k = len(colors)
+        stack = list()
+        dc = copy.deepcopy(graph)
+
+        while graph.vertices():
+            largest = next(iter(graph.vertices()))
+            for node in graph.vertices():
+                if (len(graph.adjacent(node)) > len(graph.adjecent(largest))):
+                    largest = node
+
+            spilled = len(graph.adjacent(largest)) > k
+            stack.append((largest, spilled))
+            graph.remove_vertex(largest)
+
+
+        while stack:
+            node, spilled = stack.pop()
+
+            if spilled:
+                mapping[node] = None
+            else:
+                used_colors = set()
+                for present in mapping.keys():
+                    if dc.has_edge(node, present):
+                        used_colors.add(mapping[present])
+
+                mapping[node] = None
+                for color in colors:
+                    if color not in used_colors:
+                        mapping[node] = color
+                        break
+        for node in mapping:
+            if mapping[node] == None:
+                used_colors = set()
+                for present in mapping.keys():
+                    if dc.has_edge(node, present):
+                        used_colors.add(mapping[present])
+                colored = False
+                for color in colors:
+                    if color not in used_colors:
+                        mapping[node] = color
+                        colored = True
+                        break
+                if colored == False:
+                    self.stack_frame += 8
+                    home = Deref("rbp", -self.stack_frame)
+                    mapping[node] = home
+                    #so we can reuse the new "color"
+                    colors.append(home)
+
+        return mapping
 
     def color_graph(
         self, graph: UndirectedAdjList, colors: list[location]
@@ -224,12 +396,10 @@ class CompilerReg(Compiler):
         k = len(colors)
         stack = list()
         dc = copy.deepcopy(graph)
-        dc.show().view()
 
         while graph.vertices():
             removed = False
             for node in graph.vertices():
-                print(node)
                 if (len(graph.adjacent(node)) < k):
                     stack.append((node, False))
                     graph.remove_vertex(node)
@@ -372,6 +542,9 @@ class CompilerReg(Compiler):
     def prelude_and_conclusion(self, p: X86Program) -> X86Program:
         new_program: dict[str, list[instr]] = []
 
+        #due to the uneven number of register we save
+        self.stack_frame += 8
+
         for f in p.body:
             prelude = [
                 Instr("pushq", [Reg("rbp")]),
@@ -411,9 +584,6 @@ class CompilerReg(Compiler):
             'patch instructions': self.patch_instructions,
             'prelude & conclusion': self.prelude_and_conclusion,
         }
-        """
-        }
-        """
 
         current_program = parse(s)
 

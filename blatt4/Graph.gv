@@ -3,24 +3,6 @@ graph {
 	c
 	tmp_0
 	a
-	r8
-	rdi
-	rsi
-	r10
-	rdx
-	r9
-	rcx
-	rax
-	r11
-	r11 -- b [len=1.5]
-	tmp_0 -- b [len=1.5]
-	r8 -- b [len=1.5]
-	rdi -- b [len=1.5]
-	rsi -- b [len=1.5]
-	r10 -- b [len=1.5]
-	rdx -- b [len=1.5]
-	r9 -- b [len=1.5]
-	rcx -- b [len=1.5]
-	rax -- b [len=1.5]
 	c -- b [len=1.5]
+	tmp_0 -- b [len=1.5]
 }
